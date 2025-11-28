@@ -12,8 +12,10 @@ export async function buscaCarroCod(id_carro: number): Promise<Carro | null> {
     return carro || null;
 }
 
-export async function criarCarro(dados: Omit<Carro, "id_carro">): Promise<Carro> {
-    const [novo] = await knex<Carro>("carro").insert(dados).returning("*");
+export async function criarCarro(dados: Omit<Carro, "id_carro"> & { id_cliente: number }): Promise<Carro> {
+    const [novo] = await knex<Carro>("carro")
+        .insert(dados)
+        .returning("*");
     return novo;
 }
 
@@ -25,5 +27,13 @@ export async function deletarCarro(id_carro: number): Promise<boolean> {
     }
 
     await knex<Carro>("carro").where({ id_carro }).delete();
+    return true;
+}
+
+export async function buscarCarroPorPlaca(placa: string): Promise<Boolean> {
+    const busca = await knex<Carro>("carro").where(placa).first();
+    if (!busca) {
+        return false;
+    }
     return true;
 }

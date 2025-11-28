@@ -56,30 +56,61 @@ class OperadorController {
         try {
             logger.info("Editando operador");
 
-            // Recebe id + campos para atualizar
-            const dados = request.body as Partial<Operador> & { id_operador: number };
+            // Pega o ID do operador da rota
+            const { id_operador } = request.params as { id_operador: number };
+            if (!id_operador) {
+                return reply.code(400).send({ message: "ID é obrigatório" });
+            }
 
-            // Verifica se o operador existe
-            const operadorExistente = await buscaOperadorCod(dados.id_operador);
+            // Pega os dados enviados no body
+            const dadosRaw = request.body;
+            let dados: Partial<Operador> = {};
+
+            if (typeof dadosRaw === "string") {
+                dados = JSON.parse(dadosRaw);
+            } else {
+                dados = dadosRaw;
+            }
+
+            // Busca o operador existente
+            const operadorExistente = await buscaOperadorCod(id_operador);
             if (!operadorExistente) {
                 return reply.code(404).send({ message: "Operador não encontrado" });
             }
 
-            // Atualiza apenas os campos enviados (nome, email, senha, etc)
-            const [operadorAtualizado] = await knex<Operador>('operador')
-                .where({ id_operador: dados.id_operador })
-                .update({
-                    nome: dados.nome ?? operadorExistente.nome,
-                    email: dados.email ?? operadorExistente.email,
-                    senha: dados.senha ?? operadorExistente.senha,
-                })
-                .returning('*'); // retorna o registro atualizado
+            // Prepara o objeto de atualização
+            const updateDados: Partial<Operador> = { ...dados };
 
+            logger.info(updateDados);
+            // Remove a senha se estiver vazia
+            if (updateDados.senha !== undefined && updateDados.senha.trim() === "") {
+                delete updateDados.senha;
+            }
+
+            // Remove qualquer outro campo vazio ou undefined
+            Object.keys(updateDados).forEach(key => {
+                const valor = updateDados[key as keyof Operador];
+                if (valor === "" || valor === undefined) {
+                    delete updateDados[key as keyof Operador];
+                }
+            });
+
+            // Se não sobrou nada para atualizar
+            if (Object.keys(updateDados).length === 0) {
+                return reply.code(400).send({ message: "Nenhum campo válido para atualizar" });
+            }
+
+            // Atualiza no banco
+            const [operadorAtualizado] = await knex<Operador>('operador')
+                .where({ id_operador })
+                .update(updateDados)
+                .returning('*');
+
+            logger.info("Operador atualizado com sucesso:", operadorAtualizado);
             reply.send({ message: "Operador editado!", data: operadorAtualizado });
 
         } catch (error) {
             logger.error(error, "Erro ao editar operador");
-
             reply.code(500).send({
                 statusCode: 500,
                 error: "Internal Server Error",
@@ -87,6 +118,8 @@ class OperadorController {
             });
         }
     }
+
+
 
     async delet(request: FastifyRequest, reply: FastifyReply) {
         try {
